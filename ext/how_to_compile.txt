@@ -1,0 +1,5 @@
+Start a Visual Studio shell. (See helper script 'start_visual_studio_dev_env_ prompt.bat')
+Run ruby extconf.rb
+Make sure the demo is not running.
+Run compile_hotkey_processor.bat. The shared object gets compiled,
+linked and automatically copied to the project root dir.
