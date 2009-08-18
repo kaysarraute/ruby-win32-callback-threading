@@ -5,14 +5,24 @@
 int process_keypress_function;
 VALUE HotkeyProcessor;
 HHOOK keyboard_hook;
+struct KEYEVENT { int vkcode;
+                  BOOL down; };
+
+static BOOL pass_key_event_to_ruby(struct KEYEVENT *key_event) {
+  return (Qtrue == rb_funcall(HotkeyProcessor, process_keypress_function, 2,
+                       INT2NUM(key_event->vkcode),
+                       (key_event->down ? Qtrue : Qfalse)));
+}
 
 LRESULT CALLBACK callback_function(int Code, WPARAM wParam, LPARAM lParam)
 {
   PKBDLLHOOKSTRUCT kbd = (PKBDLLHOOKSTRUCT)lParam;
-  
-  if (Code < 0 || Qtrue == rb_funcall(HotkeyProcessor, process_keypress_function, 2,
-                                      INT2NUM(kbd->vkCode),                                                /* code */
-                                      (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) ? Qtrue : Qfalse)) /* down */
+  struct KEYEVENT key_event;
+
+  key_event.vkcode = kbd->vkCode;
+  key_event.down = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
+
+  if (Code < 0 || rb_thread_call_with_gvl(pass_key_event_to_ruby, &key_event))
       return CallNextHookEx(keyboard_hook, Code, wParam, lParam);
   else
     return 1;
@@ -22,18 +32,22 @@ static BOOL get_message(MSG *msg) {
   return GetMessage(msg, 0, 0, 0);
 }
 
+static void pump_messages(int fuck) {
+  MSG msg;
+  while (GetMessage(&msg, 0, 0, 0) == 1) {
+    TranslateMessage(&msg);
+    DispatchMessage(&msg);
+  }
+}
+
 static VALUE start(VALUE self)
 {
     HMODULE Module = GetModuleHandle(NULL);
-    MSG msg;
 
     keyboard_hook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC) callback_function, Module, 0);
     
-    get_message(&msg); /* footnote 2 */
-      /* rb_thread_blocking_region(get_message, &msg, 0, 0) */ /* footnote 3, tentative non-blocking version of the line above */
-
-    /* Never get here. Wait forever for get_message() to return
-       to keep the program alive and responding to callbacks. */
+    rb_thread_blocking_region(pump_messages, 0, 0, 0);
+    /* clean up */
     return self;
 }
 

@@ -7,11 +7,10 @@ end
 module HotkeyProcessor
   def self.process_keypress(code, down)
     print '. '
-    slowly_do_stuff              if code == 65 and down # A pressed
-    Thread.new {slowly_do_stuff} if code == 66 and down # B pressed
+    Thread.new {slowly_do_stuff} if code == 65 and down # A pressed
     true
   end
 end
-puts 'Press A, B and other keys.'
+puts 'Repeatedly Press A or other keys!'
 HotkeyProcessor.start
 
